@@ -11,3 +11,448 @@ AGILE DEVIPS THEORY RAMALINGAM adhula check
 
 adhuvum illana 
 DA LA RAMALINGAM
+
+
+Jenkins CI/CD Lab – Practice Questions
+ISWE406L – Agile Development Process and DevOps | Windows Agent
+
+Complete code solutions for Questions 1–7 from the uploaded ISWE406L Jenkins CI/CD Lab Practice Questions.
+
+Question 1 – Build, Test and Post-Build Result
+
+Stages: Checkout, Install Dependencies, Run Unit Tests. Includes multiply(a,b), divide(a,b), and a post block for success/failure.
+
+# app.py
+def multiply(a, b):
+    return a * b
+
+def divide(a, b):
+    return a / b
+
+# test_app.py
+from app import multiply, divide
+
+def test_multiply():
+    assert multiply(4, 5) == 20
+
+def test_divide():
+    assert divide(20, 5) == 4
+
+# requirements.txt
+pytest
+
+// Jenkinsfile
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<username>/<repo-name>.git'
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                bat 'python -m pip install -r requirements.txt'
+            }
+        }
+        stage('Run Unit Tests') {
+            steps {
+                bat 'python -m pytest test_app.py'
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Build succeeded: all unit tests passed.'
+        }
+        failure {
+            echo 'Build failed: check the application or tests.'
+        }
+    }
+}
+
+First push the correct code and build once: the pipeline should pass.
+
+Break multiply(), for example: return a + b. Commit, push, and rebuild.
+
+The unit-test stage fails and the post failure message appears.
+
+Question 2 – Parameterized Unit Tests
+
+Stages: Checkout, Install Dependencies, Run Unit Tests (verbose). Three cases are used for each function.
+
+# app.py
+def find_min(numbers):
+    return min(numbers)
+
+def count_odds(numbers):
+    return len([n for n in numbers if n % 2 != 0])
+
+# test_app.py
+import pytest
+from app import find_min, count_odds
+
+@pytest.mark.parametrize("numbers, expected", [
+    ([5, 2, 8], 2),
+    ([-10, -2, -7], -10),
+    ([4, 4, 4], 4),
+])
+def test_find_min(numbers, expected):
+    assert find_min(numbers) == expected
+
+@pytest.mark.parametrize("numbers, expected", [
+    ([1, 2, 3, 4], 2),
+    ([1, 3, 5], 3),
+    ([2, 4, 6, 8], 0),
+])
+def test_count_odds(numbers, expected):
+    assert count_odds(numbers) == expected
+
+# requirements.txt
+pytest
+
+// Jenkinsfile
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<username>/<repo-name>.git'
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                bat 'python -m pip install -r requirements.txt'
+            }
+        }
+        stage('Run Unit Tests (verbose)') {
+            steps {
+                bat 'python -m pytest test_app.py -v'
+            }
+        }
+    }
+}
+
+There are 2 test functions, but 3 parameter cases for each, so pytest runs 6 tests.
+
+With -v, every parameterized case appears separately in Console Output.
+
+Add a wrong expected value to one case; only that case should fail.
+
+Question 3 – Manual Approval Deployment Gate
+
+# app.py
+print("Deploying application...")
+print("Deployment complete.")
+
+// Jenkinsfile
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME = 'StudentApplication'
+        APP_VERSION = '1.0'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<username>/<repo-name>.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                bat 'python -m py_compile app.py'
+                echo 'Build successful: app.py compiled correctly.'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                input message: "Approve deployment of ${env.APP_NAME} version ${env.APP_VERSION}?",
+                      ok: 'Release'
+                bat 'python app.py'
+            }
+        }
+    }
+}
+
+Click Release in one build: deployment continues and app.py runs.
+
+Click Abort in another build: the pipeline stops at the approval gate and app.py does not run.
+
+Question 4 – Environment Variables and Linting
+
+# app.py
+def greet(name):
+    return "Hello, " + name
+
+// Jenkinsfile
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<username>/<repo-name>.git'
+            }
+        }
+        stage('Show Build Info') {
+            steps {
+                echo "Build Number: ${env.BUILD_NUMBER}"
+                echo "Job Name: ${env.JOB_NAME}"
+                echo "Workspace: ${env.WORKSPACE}"
+            }
+        }
+        stage('Run Linter') {
+            steps {
+                bat 'flake8 app.py'
+            }
+        }
+    }
+}
+
+Build twice. BUILD_NUMBER changes from 1 to 2; JOB_NAME and normally WORKSPACE stay the same.
+
+Add an unused import such as import os, commit/push, and rebuild. Flake8 should fail the linter stage.
+
+If the Jenkins agent cannot resolve the flake8 command but Python can import the package, the equivalent lab check can be invoked as: bat 'python -m flake8 app.py'.
+
+Question 5 – Parameterized Pipeline
+
+// Jenkinsfile
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Select the environment'
+        )
+        booleanParam(
+            name: 'RUN_EXTRA_CHECK',
+            defaultValue: false,
+            description: 'Run the extra check'
+        )
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<username>/<repo-name>.git'
+            }
+        }
+
+        stage('Show Parameter') {
+            steps {
+                echo "Selected Environment: ${params.ENVIRONMENT}"
+                echo "Run Extra Check: ${params.RUN_EXTRA_CHECK}"
+            }
+        }
+
+        stage('Extra Check') {
+            when {
+                expression {
+                    return params.RUN_EXTRA_CHECK
+                }
+            }
+            steps {
+                echo "Extra Check is running for ${params.ENVIRONMENT}."
+                bat 'python --version'
+            }
+        }
+    }
+}
+
+Explanation: the parameter definitions are loaded from the Jenkinsfile. After Jenkins processes the parameterized job, the Build with Parameters option exposes ENVIRONMENT and RUN_EXTRA_CHECK.
+
+Run with RUN_EXTRA_CHECK unchecked: Extra Check is skipped.
+
+Run with RUN_EXTRA_CHECK checked: Extra Check executes.
+
+Compare the pipeline views and Console Output.
+
+Question 6 – Parallel Checks and Archived Reports
+
+# frontend_check.py
+import time
+
+print("Starting frontend check...")
+time.sleep(4)
+
+with open("frontend_report.txt", "w") as file:
+    file.write("Frontend check completed successfully.\n")
+
+print("Frontend check completed.")
+
+# backend_check.py
+import time
+
+print("Starting backend check...")
+time.sleep(4)
+
+with open("backend_report.txt", "w") as file:
+    file.write("Backend check completed successfully.\n")
+
+print("Backend check completed.")
+
+// Jenkinsfile
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<username>/<repo-name>.git'
+            }
+        }
+
+        stage('Parallel Checks') {
+            parallel {
+                stage('Frontend Check') {
+                    steps {
+                        bat 'python frontend_check.py'
+                    }
+                }
+                stage('Backend Check') {
+                    steps {
+                        bat 'python backend_check.py'
+                    }
+                }
+            }
+        }
+
+        stage('Archive Reports') {
+            steps {
+                archiveArtifacts artifacts: 'frontend_report.txt,backend_report.txt',
+                                 fingerprint: true
+            }
+        }
+    }
+}
+
+Sequential execution is about 8 seconds plus overhead; parallel execution is about 4 seconds plus overhead.
+
+Run Build #1 and verify both reports under its Artifacts.
+
+Run Build #2 and open Build #1 again to show its artifacts remain available.
+
+Question 7 – Milestone and Notification
+
+# app.py
+def greet(name):
+    return "Hello, " + name
+
+print(greet("Jenkins"))
+
+// Jenkinsfile – echo workaround when SMTP is not configured
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<username>/<repo-name>.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                bat 'python -m py_compile app.py'
+                echo 'Waiting 15 seconds before milestone.'
+                sleep time: 15, unit: 'SECONDS'
+                milestone 1
+            }
+        }
+
+        stage('Send Notification') {
+            steps {
+                echo "To: student@example.com"
+                echo "Subject: Jenkins Job ${env.JOB_NAME} Build #${env.BUILD_NUMBER}"
+                echo "Body: Build URL - ${env.BUILD_URL}"
+            }
+        }
+    }
+}
+
+// Jenkinsfile – real mail step when SMTP is configured
+stage('Send Notification') {
+    steps {
+        mail(
+            to: 'student@example.com',
+            subject: "Jenkins Job ${env.JOB_NAME} Build #${env.BUILD_NUMBER}",
+            body: "Build URL: ${env.BUILD_URL}"
+        )
+    }
+}
+
+Start Build #1, then quickly start Build #2. Observe the effect of milestone(1) on the older build.
+
+The echo version is only a notification workaround when SMTP is unavailable; it does not send an actual email.
+
+If app.py contains a syntax error, py_compile fails in Build, so Send Notification is never reached.
+
+Common GitHub + Jenkins Workflow
+
+git init
+git branch -M main
+git add .
+git commit -m "Jenkins practice question"
+git remote add origin https://github.com/<username>/<repo-name>.git
+git push -u origin main
+
+Jenkins: New Item → Pipeline → Pipeline script from SCM → Git → repository URL → */main → Jenkinsfile → Save → Build Now. For Q5 use Build with Parameters after Jenkins has loaded the parameters.
+
+Quick Viva Points
+
+Concept
+
+Meaning
+
+BUILD_NUMBER
+
+Current build number; changes on each build.
+
+JOB_NAME
+
+Name of the Jenkins job.
+
+WORKSPACE
+
+Directory used by Jenkins for the job.
+
+post
+
+Runs outcome-dependent actions after stages.
+
+input
+
+Pauses a pipeline for human approval/abort.
+
+parameters
+
+Defines user-selectable build parameters.
+
+when
+
+Controls whether a stage runs.
+
+parallel
+
+Runs independent branches concurrently.
+
+archiveArtifacts
+
+Stores files as build artifacts.
+
+milestone
+
+Creates a checkpoint used to manage build progression.
+
+Source: Uploaded ISWE406L Jenkins CI/CD 
